@@ -155,25 +155,6 @@ def heisenberg_weyl_toqito(x: int, z: int, d: int) -> np.ndarray:
 def depol_channel(rho):
     return apply_channel(rho,choi_depolarizing)
 
-def get_sic_povm(d, fiducial_vector):
-    """
-    Generates a SIC-POVM from a fiducial vector using Weyl-Heisenberg operators.
-    """
-    X = shift(d)
-    Z = clock(d)
-    
-    povm_elements = []
-
-    for a in range(d):
-        for b in range(d):
-            # D = (X^a) @ (Z^b)
-            op = np.linalg.matrix_power(X, a) @ np.linalg.matrix_power(Z, b)
-            vec = op @ fiducial_vector
-            # POVM element E_k = 1/d * |psi><psi|
-            povm_elements.append((1/d) * np.outer(vec, vec.conj()))
-            
-    return povm_elements
-
 def get_antisymmetric_unitary(d):
     """
     Constructs the standard antisymmetric unitary matrix U for even dimension d.
@@ -322,87 +303,13 @@ le floating point noise
     }
 
 
-def norm_condition(ptm, d):
-    frobenius = np.linalg.norm(ptm, ord='fro')
-    if frobenius > np.sqrt(d):
-        print('Norm condition says channel is not e.b. since norm too big')
-    elif frobenius <= np.sqrt(1/(d**2-1)+1):
-        print('Norm condition says channel is e.b. since norm too small')
-    else:
-        print('Norm condition can not make a statement')
-        
-def norm_condition_power(ptm, ev, d, n):
-    norm = np.linalg.norm(ev, ord=2*n)**(2*n)
-    if (norm > d):
-        print(f'Channel^{n} is not e.b.')
-    else:
-        print(f'Can not make a statement about this power {n} via norm condition')
 
-def bound_norm_condition(ptm, ev, d):
-    frobenius = np.linalg.norm(ptm, ord='fro')
-    temp = top_two_abs_values(ev)
-    g = temp["first_max_count"]
-    D = temp["second_max_count"]
-    if D != (d**2 -1):
-        print('STOP! Rundungsfehler')
-    max_2 = temp["second_max_val"]
-    temp = np.log((d-g)/D)/(2*np.log(max_2))
     
-    temp2 = -1/2*np.log(d**2-1)/np.log(np.sqrt(frobenius**2-1))
-    
-    print(f'Norm condition says the e.b. index is greater equal {temp}')
-    if frobenius >= d/np.sqrt(d**2-1) and frobenius <= np.sqrt(2):
-        print(f'Contraction condition says the e.b. index is smaller {temp2}')
-    else:
-        print('Contraction condition: no upper bound bound possible since norm not in range')
-    return temp
-        
-
 
 def is_positive_semidefinite_jax(matrix, tol=1e-6):
 
     evals = jnp.linalg.eigvalsh(matrix)
     return jnp.min(evals) >= -tol
-
-
-def sic_condition_jax(channel_func, d):
-    """
-    [AI-DOC] channel_func: Deine 'channel_ready' Funktion (lambda), die nur ein Argument (rho) nimmt.
-    """
-    
-
-
-    fid_vector = jnp.array(fid_vector_list[d-2]) 
-    
-
-    fid_vector = fid_vector / jnp.linalg.norm(fid_vector)
-    
-
-    sic_povm_np = get_sic_povm(d, fid_vector) 
-    sic_povm = [jnp.array(M) for M in sic_povm_np]
-    
-    temp_sic = True
-    
-
-    for i in sic_povm:
-
-        channel_out = channel_func(i)
-        
-
-        temp = (d + 1) * channel_out - jnp.eye(d) / d
-        
-
-        if not is_positive_semidefinite_jax(temp):
-            temp_sic = False
-
-            break 
-
-    if temp_sic:
-        print('SICs say channel is entanglement breaking')
-    else:
-        print('SICs can not make a statement')
-        
-    return temp_sic
 
 
 def compute_choi_jax(channel_func, d):
@@ -438,42 +345,6 @@ def compute_choi_jax(channel_func, d):
     choi_matrix = outputs_reordered.reshape(d*d, d*d)
     
     return choi_matrix
-
-    
-dim = 6
-for d in range(dim, dim +1, 1):
-    p_thresh = d/(d+1) #for all p bigger equal this the depolarizing channel is e.b.
-    p = p_thresh
-    p = 0.8
-    p = 0.001
-    p = 0.84
-    print(f'dim is {d}, threshold is {p_thresh}, p is {p}')
-    if p == 0:
-        print('Channel is not eeb')
-    else:
-        index_lower_bound = -np.log(d+1)/np.log(1-p)
-        print(f'The e.b. index of this channel is bigger equal {index_lower_bound}')
-    if p >= p_thresh:
-        print(f'Depolarizing channel in d = {d} is e.b.')
-    else: 
-        print('Depolarizing channel is not e.b.')
-    
-    channel_ready = lambda rho: depol_jax(rho, p)
-    
-
-    ptm = compute_ptm_jax(channel_ready, d)
-    ev = get_eigenvalues(ptm)
-
-    check_breuer_hall_entanglement(compute_choi_jax(channel_ready, d), d)
-    sic_condition_jax(channel_ready, d)
-    # temp1 = bound_norm_condition(ptm, ev, d)
-    # norm_condition(ptm, d)
-    # start = int(temp1/2)
-    # end = int(index_lower_bound)
-    # # for n in range(start, end, max(int((end- start)/40), 1)):
-    # #     norm_condition_power(ptm, ev, d, n)
-    # print(np.linalg.norm(ptm, ord='fro'), np.sqrt(1/(d**2+1)+1), np.sqrt(2))
-    # print()
 
     
     
